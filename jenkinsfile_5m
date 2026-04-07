@@ -14,7 +14,7 @@ pipeline {
 
         stage('Run script') {
             steps {
-                bat 'python script_run_5m.py'
+                sh 'python3 script_now.py'
             }
         }
     }
