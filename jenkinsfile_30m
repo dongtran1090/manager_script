@@ -6,16 +6,59 @@ pipeline {
     }
 
     stages {
-        stage('Checkout') {
+        stage('Notify Before Build') {
             steps {
-                checkout scm
+                emailext(
+                    to: 'tvdtphcm1812@gmail.com',
+                    subject: "[Jenkins] ${env.JOB_NAME} #${env.BUILD_NUMBER} will start in 10 seconds",
+                    body: """Jenkins is about to run the job.
+
+Job: ${env.JOB_NAME}
+Build: #${env.BUILD_NUMBER}
+Schedule: Every 5 minutes
+Triggered at: ${new Date()}
+URL: ${env.BUILD_URL}
+"""
+                )
+                sleep time: 10, unit: 'SECONDS'
             }
         }
 
-        stage('Run script') {
+        stage('Run Script') {
             steps {
-                sh 'python3 script_now.py'
+                sh 'python3 script_run_30m.py'
             }
+        }
+    }
+
+    post {
+        success {
+            emailext(
+                to: 'tvdtphcm1812@gmail.com',
+                subject: "[SUCCESS] ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                body: """Build completed successfully.
+
+Job: ${env.JOB_NAME}
+Build: #${env.BUILD_NUMBER}
+Schedule: Every 5 minutes
+Finished at: ${new Date()}
+URL: ${env.BUILD_URL}
+"""
+            )
+        }
+        failure {
+            emailext(
+                to: 'tvdtphcm1812@gmail.com',
+                subject: "[FAILURE] ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                body: """Build failed.
+
+Job: ${env.JOB_NAME}
+Build: #${env.BUILD_NUMBER}
+Schedule: Every 5 minutes
+Finished at: ${new Date()}
+URL: ${env.BUILD_URL}
+"""
+            )
         }
     }
 }
