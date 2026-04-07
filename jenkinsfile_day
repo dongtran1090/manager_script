@@ -2,20 +2,19 @@ pipeline {
     agent any
 
     triggers {
-        cron('0 15 * * *')   
+        cron('0 15 * * *')
     }
 
     stages {
         stage('Checkout') {
             steps {
-                echo 'Checkout code'
+                checkout scm
             }
         }
 
         stage('Run script') {
             steps {
-                sh 'python3 --version || python --version'
-                sh 'python3 script_now.py || python script_now.py'
+                bat 'python script_day.py'
             }
         }
     }
