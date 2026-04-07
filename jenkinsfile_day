@@ -26,7 +26,7 @@ URL: ${env.BUILD_URL}
 
         stage('Run Script') {
             steps {
-                sh 'python3 script_run_day.py'
+                sh 'python3 script_day.py'
             }
         }
     }
