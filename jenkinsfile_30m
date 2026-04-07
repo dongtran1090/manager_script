@@ -1,0 +1,22 @@
+pipeline {
+    agent any
+
+    triggers {
+        cron('0,30 * * * *')   
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                echo 'Checkout code'
+            }
+        }
+
+        stage('Run script') {
+            steps {
+                sh 'python3 --version || python --version'
+                sh 'python3 script_now.py || python script_now.py'
+            }
+        }
+    }
+}
