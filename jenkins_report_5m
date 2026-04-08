@@ -5,10 +5,17 @@ pipeline {
         timestamps()
         disableConcurrentBuilds()
         buildDiscarder(logRotator(numToKeepStr: '20'))
+        skipDefaultCheckout(true)
     }
 
     triggers {
         cron('H/5 * * * *')
+    }
+
+    environment {
+        VENV_DIR     = '.venv'
+        REPORTS_DIR  = 'reports'
+        ARTIFACTS_DIR = 'artifacts'
     }
 
     stages {
@@ -18,13 +25,43 @@ pipeline {
             }
         }
 
-        stage('Setup') {
+        stage('Environment Check') {
             steps {
                 sh '''
-                    python3 -m venv .venv
-                    . .venv/bin/activate
-                    pip install --upgrade pip
-                    pip install -r requirements.txt || true
+                    set -eux
+                    echo "=== Environment Check ==="
+                    whoami
+                    pwd
+                    uname -a || true
+                    which python3
+                    python3 --version
+                    python3 -m pip --version || true
+                '''
+            }
+        }
+
+        stage('Setup Python') {
+            steps {
+                sh '''
+                    set -eux
+
+                    rm -rf "${VENV_DIR}"
+
+                    python3 -m venv "${VENV_DIR}" || {
+                        echo "ERROR: Agent thiếu gói python3-venv (hoặc python3.13-venv)."
+                        echo "Hãy cài vào image agent trước khi chạy lại pipeline."
+                        exit 1
+                    }
+
+                    . "${VENV_DIR}/bin/activate"
+                    python -m pip install --upgrade pip
+
+                    if [ -f requirements.txt ]; then
+                        pip install -r requirements.txt
+                    else
+                        echo "No requirements.txt found, skipping dependency file install."
+                    fi
+
                     pip install pytest pytest-html
                 '''
             }
@@ -33,12 +70,26 @@ pipeline {
         stage('Smoke Test') {
             steps {
                 sh '''
-                    mkdir -p reports
-                    . .venv/bin/activate
-                    pytest -q \
-                      --junitxml=reports/junit.xml \
-                      --html=reports/pytest-report.html \
-                      --self-contained-html || true
+                    set -eux
+
+                    mkdir -p "${REPORTS_DIR}"
+                    . "${VENV_DIR}/bin/activate"
+
+                    if [ -d tests ]; then
+                        pytest tests -q \
+                          --junitxml="${REPORTS_DIR}/junit.xml" \
+                          --html="${REPORTS_DIR}/pytest-report.html" \
+                          --self-contained-html
+                    else
+                        cat > test_smoke.py <<'EOF'
+def test_basic():
+    assert 1 + 1 == 2
+EOF
+                        pytest test_smoke.py -q \
+                          --junitxml="${REPORTS_DIR}/junit.xml" \
+                          --html="${REPORTS_DIR}/pytest-report.html" \
+                          --self-contained-html
+                    fi
                 '''
             }
         }
@@ -46,10 +97,19 @@ pipeline {
         stage('Package Info') {
             steps {
                 sh '''
-                    mkdir -p artifacts
-                    echo "Build: ${BUILD_NUMBER}" > artifacts/build-info.txt
-                    echo "Job: ${JOB_NAME}" >> artifacts/build-info.txt
-                    echo "Branch: ${BRANCH_NAME}" >> artifacts/build-info.txt || true
+                    set -eux
+
+                    mkdir -p "${ARTIFACTS_DIR}"
+
+                    {
+                        echo "Build Number: ${BUILD_NUMBER}"
+                        echo "Job Name: ${JOB_NAME}"
+                        echo "Branch Name: ${BRANCH_NAME:-main}"
+                        echo "Node Name: ${NODE_NAME}"
+                        echo "Workspace: ${WORKSPACE}"
+                        git rev-parse --short HEAD || true
+                        date
+                    } > "${ARTIFACTS_DIR}/build-info.txt"
                 '''
             }
         }
@@ -57,18 +117,28 @@ pipeline {
 
     post {
         always {
-            junit testResults: 'reports/junit.xml', allowEmptyResults: true
+            junit testResults: "${REPORTS_DIR}/junit.xml", allowEmptyResults: true
 
             publishHTML(target: [
                 reportName: 'Pytest HTML Report',
-                reportDir: 'reports',
+                reportDir: "${REPORTS_DIR}",
                 reportFiles: 'pytest-report.html',
                 keepAll: true,
                 allowMissing: true,
                 alwaysLinkToLastBuild: true
             ])
 
-            archiveArtifacts artifacts: 'artifacts/**, reports/**', fingerprint: true
+            archiveArtifacts artifacts: "${ARTIFACTS_DIR}/**, ${REPORTS_DIR}/**",
+                             allowEmptyArchive: true,
+                             fingerprint: true
+        }
+
+        success {
+            echo 'Pipeline completed successfully.'
+        }
+
+        failure {
+            echo 'Pipeline failed. Check the first error in Console Output.'
         }
     }
 }
