@@ -13,8 +13,8 @@ pipeline {
     }
 
     environment {
-        VENV_DIR     = '.venv'
-        REPORTS_DIR  = 'reports'
+        VENV_DIR      = '.venv'
+        REPORTS_DIR   = 'reports'
         ARTIFACTS_DIR = 'artifacts'
     }
 
@@ -62,7 +62,24 @@ pipeline {
                         echo "No requirements.txt found, skipping dependency file install."
                     fi
 
-                    pip install pytest pytest-html
+                    pip install pytest pytest-html flake8
+                '''
+            }
+        }
+
+        stage('Lint') {
+            steps {
+                sh '''
+                    set +e
+
+                    mkdir -p "${REPORTS_DIR}"
+                    . "${VENV_DIR}/bin/activate"
+
+                    flake8 . \
+                      --exclude=.git,__pycache__,.venv,reports,artifacts \
+                      --output-file="${REPORTS_DIR}/flake8-report.txt"
+
+                    exit 0
                 '''
             }
         }
@@ -127,6 +144,8 @@ EOF
                 allowMissing: true,
                 alwaysLinkToLastBuild: true
             ])
+
+            recordIssues tools: [flake8(pattern: "${REPORTS_DIR}/flake8-report.txt")]
 
             archiveArtifacts artifacts: "${ARTIFACTS_DIR}/**, ${REPORTS_DIR}/**",
                              allowEmptyArchive: true,
