@@ -1,0 +1,74 @@
+pipeline {
+    agent { label 'agent-1 || agent-2' }
+
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+    }
+
+    triggers {
+        cron('H/5 * * * *')
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Setup') {
+            steps {
+                sh '''
+                    python3 -m venv .venv
+                    . .venv/bin/activate
+                    pip install --upgrade pip
+                    pip install -r requirements.txt || true
+                    pip install pytest pytest-html
+                '''
+            }
+        }
+
+        stage('Smoke Test') {
+            steps {
+                sh '''
+                    mkdir -p reports
+                    . .venv/bin/activate
+                    pytest -q \
+                      --junitxml=reports/junit.xml \
+                      --html=reports/pytest-report.html \
+                      --self-contained-html || true
+                '''
+            }
+        }
+
+        stage('Package Info') {
+            steps {
+                sh '''
+                    mkdir -p artifacts
+                    echo "Build: ${BUILD_NUMBER}" > artifacts/build-info.txt
+                    echo "Job: ${JOB_NAME}" >> artifacts/build-info.txt
+                    echo "Branch: ${BRANCH_NAME}" >> artifacts/build-info.txt || true
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            junit testResults: 'reports/junit.xml', allowEmptyResults: true
+
+            publishHTML(target: [
+                reportName: 'Pytest HTML Report',
+                reportDir: 'reports',
+                reportFiles: 'pytest-report.html',
+                keepAll: true,
+                allowMissing: true,
+                alwaysLinkToLastBuild: true
+            ])
+
+            archiveArtifacts artifacts: 'artifacts/**, reports/**', fingerprint: true
+        }
+    }
+}
