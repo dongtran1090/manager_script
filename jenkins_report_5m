@@ -40,6 +40,24 @@ pipeline {
             }
         }
 
+        stage('Test JDK Tool') {
+            steps {
+                script {
+                    def jdkHome = tool name: 'jdk17-test', type: 'hudson.model.JDK'
+                    env.JAVA_HOME = jdkHome
+                    env.PATH = "${jdkHome}/bin:${env.PATH}"
+                }
+                sh '''
+                    set -eux
+                    echo "=== JDK Tool Check ==="
+                    echo "JAVA_HOME=$JAVA_HOME"
+                    which java
+                    java -version
+                    javac -version
+                '''
+            }
+        }
+
         stage('Setup Python') {
             steps {
                 sh '''
