@@ -45,35 +45,31 @@ pipeline {
                     }
 
                     steps {
-                        lock(resource: 'central-history-log') {
-                            sh '''
-                                SAFE_JOB_NAME=$(echo "$JOB_NAME" | tr '/' '_')
-                                mkdir -p "/shared-logs/$SAFE_JOB_NAME"
-                                echo "$(date '+%Y-%m-%d %H:%M:%S') | BUILD=#${BUILD_NUMBER} | AGENT=${NODE_NAME} | STATUS=STARTED | TASK=${TASK_NAME} | FILE=${TARGET_FILE}" >> "/shared-logs/$SAFE_JOB_NAME/history.log"
-                            '''
-                        }
+                        script {
+                            def code = sh(
+                                script: "python3 ${TARGET_FILE}",
+                                returnStatus: true
+                            )
 
-                        sh '''
-                            echo "agent-1 dang chay ${TARGET_FILE}"
-                            python3 ${TARGET_FILE}
-                        '''
-                    }
-
-                    post {
-                        success {
-                            lock(resource: 'central-history-log') {
-                                sh '''
-                                    SAFE_JOB_NAME=$(echo "$JOB_NAME" | tr '/' '_')
-                                    echo "$(date '+%Y-%m-%d %H:%M:%S') | BUILD=#${BUILD_NUMBER} | AGENT=${NODE_NAME} | STATUS=SUCCESS | TASK=${TASK_NAME} | FILE=${TARGET_FILE}" >> "/shared-logs/$SAFE_JOB_NAME/history.log"
-                                '''
-                            }
-                        }
-                        failure {
-                            lock(resource: 'central-history-log') {
-                                sh '''
-                                    SAFE_JOB_NAME=$(echo "$JOB_NAME" | tr '/' '_')
-                                    echo "$(date '+%Y-%m-%d %H:%M:%S') | BUILD=#${BUILD_NUMBER} | AGENT=${NODE_NAME} | STATUS=FAILURE | TASK=${TASK_NAME} | FILE=${TARGET_FILE}" >> "/shared-logs/$SAFE_JOB_NAME/history.log"
-                                '''
+                            if (code == 0) {
+                                lock(resource: 'central-history-log') {
+                                    sh '''
+                                        SAFE_JOB_NAME=$(echo "$JOB_NAME" | tr '/' '_')
+                                        mkdir -p "/shared-logs/$SAFE_JOB_NAME"
+                                        echo "$(date '+%Y-%m-%d %H:%M:%S') | BUILD=#${BUILD_NUMBER} | AGENT=${NODE_NAME} | STATUS=SUCCESS | TASK=${TASK_NAME} | FILE=${TARGET_FILE}" >> "/shared-logs/$SAFE_JOB_NAME/history.log"
+                                    '''
+                                }
+                            } else if (code == 10) {
+                                echo "${TARGET_FILE} khong co viec de lam -> khong ghi history"
+                            } else {
+                                lock(resource: 'central-history-log') {
+                                    sh '''
+                                        SAFE_JOB_NAME=$(echo "$JOB_NAME" | tr '/' '_')
+                                        mkdir -p "/shared-logs/$SAFE_JOB_NAME"
+                                        echo "$(date '+%Y-%m-%d %H:%M:%S') | BUILD=#${BUILD_NUMBER} | AGENT=${NODE_NAME} | STATUS=FAILURE | TASK=${TASK_NAME} | FILE=${TARGET_FILE}" >> "/shared-logs/$SAFE_JOB_NAME/history.log"
+                                    '''
+                                }
+                                error("${TARGET_FILE} failed with exit code ${code}")
                             }
                         }
                     }
@@ -92,35 +88,31 @@ pipeline {
                     }
 
                     steps {
-                        lock(resource: 'central-history-log') {
-                            sh '''
-                                SAFE_JOB_NAME=$(echo "$JOB_NAME" | tr '/' '_')
-                                mkdir -p "/shared-logs/$SAFE_JOB_NAME"
-                                echo "$(date '+%Y-%m-%d %H:%M:%S') | BUILD=#${BUILD_NUMBER} | AGENT=${NODE_NAME} | STATUS=STARTED | TASK=${TASK_NAME} | FILE=${TARGET_FILE}" >> "/shared-logs/$SAFE_JOB_NAME/history.log"
-                            '''
-                        }
+                        script {
+                            def code = sh(
+                                script: "python3 ${TARGET_FILE}",
+                                returnStatus: true
+                            )
 
-                        sh '''
-                            echo "agent-2 dang chay ${TARGET_FILE}"
-                            python3 ${TARGET_FILE}
-                        '''
-                    }
-
-                    post {
-                        success {
-                            lock(resource: 'central-history-log') {
-                                sh '''
-                                    SAFE_JOB_NAME=$(echo "$JOB_NAME" | tr '/' '_')
-                                    echo "$(date '+%Y-%m-%d %H:%M:%S') | BUILD=#${BUILD_NUMBER} | AGENT=${NODE_NAME} | STATUS=SUCCESS | TASK=${TASK_NAME} | FILE=${TARGET_FILE}" >> "/shared-logs/$SAFE_JOB_NAME/history.log"
-                                '''
-                            }
-                        }
-                        failure {
-                            lock(resource: 'central-history-log') {
-                                sh '''
-                                    SAFE_JOB_NAME=$(echo "$JOB_NAME" | tr '/' '_')
-                                    echo "$(date '+%Y-%m-%d %H:%M:%S') | BUILD=#${BUILD_NUMBER} | AGENT=${NODE_NAME} | STATUS=FAILURE | TASK=${TASK_NAME} | FILE=${TARGET_FILE}" >> "/shared-logs/$SAFE_JOB_NAME/history.log"
-                                '''
+                            if (code == 0) {
+                                lock(resource: 'central-history-log') {
+                                    sh '''
+                                        SAFE_JOB_NAME=$(echo "$JOB_NAME" | tr '/' '_')
+                                        mkdir -p "/shared-logs/$SAFE_JOB_NAME"
+                                        echo "$(date '+%Y-%m-%d %H:%M:%S') | BUILD=#${BUILD_NUMBER} | AGENT=${NODE_NAME} | STATUS=SUCCESS | TASK=${TASK_NAME} | FILE=${TARGET_FILE}" >> "/shared-logs/$SAFE_JOB_NAME/history.log"
+                                    '''
+                                }
+                            } else if (code == 10) {
+                                echo "${TARGET_FILE} khong co viec de lam -> khong ghi history"
+                            } else {
+                                lock(resource: 'central-history-log') {
+                                    sh '''
+                                        SAFE_JOB_NAME=$(echo "$JOB_NAME" | tr '/' '_')
+                                        mkdir -p "/shared-logs/$SAFE_JOB_NAME"
+                                        echo "$(date '+%Y-%m-%d %H:%M:%S') | BUILD=#${BUILD_NUMBER} | AGENT=${NODE_NAME} | STATUS=FAILURE | TASK=${TASK_NAME} | FILE=${TARGET_FILE}" >> "/shared-logs/$SAFE_JOB_NAME/history.log"
+                                    '''
+                                }
+                                error("${TARGET_FILE} failed with exit code ${code}")
                             }
                         }
                     }
