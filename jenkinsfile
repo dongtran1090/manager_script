@@ -1,6 +1,11 @@
 pipeline {
     agent none
 
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+    }
+
     triggers {
         cron('H/5 * * * *')
     }
@@ -10,76 +15,119 @@ pipeline {
             parallel {
                 stage('Task on agent-1') {
                     agent { label 'agent-1' }
+
+                    environment {
+                        TASK_NAME   = 'nv-1'
+                        TARGET_FILE = 'script_now.py'
+                    }
+
                     steps {
+                        lock(resource: 'central-history-log') {
+                            sh '''
+                                SAFE_JOB_NAME=$(echo "$JOB_NAME" | tr '/' '_')
+                                mkdir -p "/shared-logs/$SAFE_JOB_NAME"
+                                echo "$(date '+%Y-%m-%d %H:%M:%S') | BUILD=#${BUILD_NUMBER} | AGENT=${NODE_NAME} | STATUS=STARTED | TASK=${TASK_NAME} | FILE=${TARGET_FILE}" >> "/shared-logs/$SAFE_JOB_NAME/history.log"
+                            '''
+                        }
+
                         sh '''
-                            mkdir -p reports
-                            echo "[`date '+%Y-%m-%d %H:%M:%S'`] [agent-1] bat dau task 1"
+                            echo "agent-1 dang chay ${TARGET_FILE}"
                             sleep 5
-                            echo "[`date '+%Y-%m-%d %H:%M:%S'`] [agent-1] da xong nv 1" > reports/agent-1.log
+                            # python3 ${TARGET_FILE}
                         '''
-                        stash name: 'agent1-log', includes: 'reports/agent-1.log'
+                    }
+
+                    post {
+                        success {
+                            lock(resource: 'central-history-log') {
+                                sh '''
+                                    SAFE_JOB_NAME=$(echo "$JOB_NAME" | tr '/' '_')
+                                    mkdir -p "/shared-logs/$SAFE_JOB_NAME"
+                                    echo "$(date '+%Y-%m-%d %H:%M:%S') | BUILD=#${BUILD_NUMBER} | AGENT=${NODE_NAME} | STATUS=SUCCESS | TASK=${TASK_NAME} | FILE=${TARGET_FILE}" >> "/shared-logs/$SAFE_JOB_NAME/history.log"
+                                '''
+                            }
+                        }
+                        failure {
+                            lock(resource: 'central-history-log') {
+                                sh '''
+                                    SAFE_JOB_NAME=$(echo "$JOB_NAME" | tr '/' '_')
+                                    mkdir -p "/shared-logs/$SAFE_JOB_NAME"
+                                    echo "$(date '+%Y-%m-%d %H:%M:%S') | BUILD=#${BUILD_NUMBER} | AGENT=${NODE_NAME} | STATUS=FAILURE | TASK=${TASK_NAME} | FILE=${TARGET_FILE}" >> "/shared-logs/$SAFE_JOB_NAME/history.log"
+                                '''
+                            }
+                        }
                     }
                 }
 
                 stage('Task on agent-2') {
                     agent { label 'agent-2' }
+
+                    environment {
+                        TASK_NAME   = 'nv-2'
+                        TARGET_FILE = 'script_run_5m.py'
+                    }
+
                     steps {
+                        lock(resource: 'central-history-log') {
+                            sh '''
+                                SAFE_JOB_NAME=$(echo "$JOB_NAME" | tr '/' '_')
+                                mkdir -p "/shared-logs/$SAFE_JOB_NAME"
+                                echo "$(date '+%Y-%m-%d %H:%M:%S') | BUILD=#${BUILD_NUMBER} | AGENT=${NODE_NAME} | STATUS=STARTED | TASK=${TASK_NAME} | FILE=${TARGET_FILE}" >> "/shared-logs/$SAFE_JOB_NAME/history.log"
+                            '''
+                        }
+
                         sh '''
-                            mkdir -p reports
-                            echo "[`date '+%Y-%m-%d %H:%M:%S'`] [agent-2] bat dau task 2"
+                            echo "agent-2 dang chay ${TARGET_FILE}"
                             sleep 7
-                            echo "[`date '+%Y-%m-%d %H:%M:%S'`] [agent-2] da xong nv 2" > reports/agent-2.log
+                            # python3 ${TARGET_FILE}
                         '''
-                        stash name: 'agent2-log', includes: 'reports/agent-2.log'
+                    }
+
+                    post {
+                        success {
+                            lock(resource: 'central-history-log') {
+                                sh '''
+                                    SAFE_JOB_NAME=$(echo "$JOB_NAME" | tr '/' '_')
+                                    mkdir -p "/shared-logs/$SAFE_JOB_NAME"
+                                    echo "$(date '+%Y-%m-%d %H:%M:%S') | BUILD=#${BUILD_NUMBER} | AGENT=${NODE_NAME} | STATUS=SUCCESS | TASK=${TASK_NAME} | FILE=${TARGET_FILE}" >> "/shared-logs/$SAFE_JOB_NAME/history.log"
+                                '''
+                            }
+                        }
+                        failure {
+                            lock(resource: 'central-history-log') {
+                                sh '''
+                                    SAFE_JOB_NAME=$(echo "$JOB_NAME" | tr '/' '_')
+                                    mkdir -p "/shared-logs/$SAFE_JOB_NAME"
+                                    echo "$(date '+%Y-%m-%d %H:%M:%S') | BUILD=#${BUILD_NUMBER} | AGENT=${NODE_NAME} | STATUS=FAILURE | TASK=${TASK_NAME} | FILE=${TARGET_FILE}" >> "/shared-logs/$SAFE_JOB_NAME/history.log"
+                                '''
+                            }
+                        }
                     }
                 }
             }
         }
 
-        stage('Collect logs on main build node') {
+        stage('Show central history log') {
             agent { label 'built-in' }
             steps {
-                script {
-                    env.SAFE_JOB_NAME = env.JOB_NAME.replace('/', '_')
-                }
-
-                deleteDir()
-                unstash 'agent1-log'
-                unstash 'agent2-log'
-
                 sh '''
-                    mkdir -p final_logs
-                    mkdir -p /var/jenkins_home/custom_logs/${SAFE_JOB_NAME}
-
-                    BUILD_LOG="final_logs/summary-${BUILD_NUMBER}.log"
-                    HISTORY_LOG="/var/jenkins_home/custom_logs/${SAFE_JOB_NAME}/history.log"
-
-                    {
-                        echo "=================================================="
-                        echo "JOB   : ${JOB_NAME}"
-                        echo "BUILD : #${BUILD_NUMBER}"
-                        echo "TIME  : $(date '+%Y-%m-%d %H:%M:%S')"
-                        echo "=================================================="
-                        cat reports/agent-1.log
-                        cat reports/agent-2.log
-                        echo
-                    } > "$BUILD_LOG"
-
-                    cat "$BUILD_LOG" >> "$HISTORY_LOG"
-
-                    cp "$HISTORY_LOG" final_logs/history.log
+                    SAFE_JOB_NAME=$(echo "$JOB_NAME" | tr '/' '_')
+                    echo "===== CENTRAL HISTORY LOG ====="
+                    cat "/shared-logs/$SAFE_JOB_NAME/history.log"
                 '''
-
-                echo '===== BUILD LOG ====='
-                sh 'cat final_logs/summary-${BUILD_NUMBER}.log'
-
-                echo '===== HISTORY LOG ====='
-                sh 'cat final_logs/history.log'
             }
-            post {
-                always {
-                    archiveArtifacts artifacts: 'final_logs/*.log', fingerprint: true
-                }
+        }
+
+        stage('Archive current history snapshot') {
+            agent { label 'built-in' }
+            steps {
+                deleteDir()
+                sh '''
+                    SAFE_JOB_NAME=$(echo "$JOB_NAME" | tr '/' '_')
+                    mkdir -p final_logs
+                    cp "/shared-logs/$SAFE_JOB_NAME/history.log" final_logs/history.log
+                '''
+                archiveArtifacts artifacts: 'final_logs/history.log', fingerprint: true
             }
         }
     }
