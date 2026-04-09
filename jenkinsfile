@@ -6,9 +6,7 @@ pipeline {
         disableConcurrentBuilds()
     }
 
-    triggers {
-        cron('H/5 * * * *')
-    }
+   
 
     stages {
         stage('Run agents in parallel') {
