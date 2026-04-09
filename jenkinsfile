@@ -5,14 +5,38 @@ pipeline {
         timestamps()
         disableConcurrentBuilds()
     }
+
     triggers {
         cron('* * * * *')
     }
 
     stages {
+        stage('Decide schedule') {
+            agent { label 'built-in' }
+            steps {
+                script {
+                    def tz = TimeZone.getTimeZone('Asia/Ho_Chi_Minh')
+                    def now = new Date()
+                    def minute = now.format('m', tz) as int
+
+                    env.RUN_AGENT1 = 'true'
+                    env.RUN_AGENT2 = (minute % 5 == 0) ? 'true' : 'false'
+                    env.SCHEDULE_TIME = now.format('yyyy-MM-dd HH:mm:ss', tz)
+
+                    echo "Current time: ${env.SCHEDULE_TIME}"
+                    echo "RUN_AGENT1=${env.RUN_AGENT1}"
+                    echo "RUN_AGENT2=${env.RUN_AGENT2}"
+                }
+            }
+        }
+
         stage('Run agents in parallel') {
             parallel {
                 stage('Task on agent-1') {
+                    when {
+                        beforeAgent true
+                        expression { env.RUN_AGENT1 == 'true' }
+                    }
                     agent { label 'agent-1' }
 
                     environment {
@@ -31,8 +55,7 @@ pipeline {
 
                         sh '''
                             echo "agent-1 dang chay ${TARGET_FILE}"
-                            sleep 5
-                            # python3 ${TARGET_FILE}
+                            python3 ${TARGET_FILE}
                         '''
                     }
 
@@ -41,7 +64,6 @@ pipeline {
                             lock(resource: 'central-history-log') {
                                 sh '''
                                     SAFE_JOB_NAME=$(echo "$JOB_NAME" | tr '/' '_')
-                                    mkdir -p "/shared-logs/$SAFE_JOB_NAME"
                                     echo "$(date '+%Y-%m-%d %H:%M:%S') | BUILD=#${BUILD_NUMBER} | AGENT=${NODE_NAME} | STATUS=SUCCESS | TASK=${TASK_NAME} | FILE=${TARGET_FILE}" >> "/shared-logs/$SAFE_JOB_NAME/history.log"
                                 '''
                             }
@@ -50,7 +72,6 @@ pipeline {
                             lock(resource: 'central-history-log') {
                                 sh '''
                                     SAFE_JOB_NAME=$(echo "$JOB_NAME" | tr '/' '_')
-                                    mkdir -p "/shared-logs/$SAFE_JOB_NAME"
                                     echo "$(date '+%Y-%m-%d %H:%M:%S') | BUILD=#${BUILD_NUMBER} | AGENT=${NODE_NAME} | STATUS=FAILURE | TASK=${TASK_NAME} | FILE=${TARGET_FILE}" >> "/shared-logs/$SAFE_JOB_NAME/history.log"
                                 '''
                             }
@@ -59,6 +80,10 @@ pipeline {
                 }
 
                 stage('Task on agent-2') {
+                    when {
+                        beforeAgent true
+                        expression { env.RUN_AGENT2 == 'true' }
+                    }
                     agent { label 'agent-2' }
 
                     environment {
@@ -77,8 +102,7 @@ pipeline {
 
                         sh '''
                             echo "agent-2 dang chay ${TARGET_FILE}"
-                            sleep 7
-                            # python3 ${TARGET_FILE}
+                            python3 ${TARGET_FILE}
                         '''
                     }
 
@@ -87,7 +111,6 @@ pipeline {
                             lock(resource: 'central-history-log') {
                                 sh '''
                                     SAFE_JOB_NAME=$(echo "$JOB_NAME" | tr '/' '_')
-                                    mkdir -p "/shared-logs/$SAFE_JOB_NAME"
                                     echo "$(date '+%Y-%m-%d %H:%M:%S') | BUILD=#${BUILD_NUMBER} | AGENT=${NODE_NAME} | STATUS=SUCCESS | TASK=${TASK_NAME} | FILE=${TARGET_FILE}" >> "/shared-logs/$SAFE_JOB_NAME/history.log"
                                 '''
                             }
@@ -96,7 +119,6 @@ pipeline {
                             lock(resource: 'central-history-log') {
                                 sh '''
                                     SAFE_JOB_NAME=$(echo "$JOB_NAME" | tr '/' '_')
-                                    mkdir -p "/shared-logs/$SAFE_JOB_NAME"
                                     echo "$(date '+%Y-%m-%d %H:%M:%S') | BUILD=#${BUILD_NUMBER} | AGENT=${NODE_NAME} | STATUS=FAILURE | TASK=${TASK_NAME} | FILE=${TARGET_FILE}" >> "/shared-logs/$SAFE_JOB_NAME/history.log"
                                 '''
                             }
@@ -106,13 +128,13 @@ pipeline {
             }
         }
 
-        stage('Show central history log') {
+        stage('Show current build entries only') {
             agent { label 'built-in' }
             steps {
                 sh '''
                     SAFE_JOB_NAME=$(echo "$JOB_NAME" | tr '/' '_')
-                    echo "===== CENTRAL HISTORY LOG ====="
-                    cat "/shared-logs/$SAFE_JOB_NAME/history.log"
+                    echo "===== CURRENT BUILD ONLY ====="
+                    grep "BUILD=#${BUILD_NUMBER} " "/shared-logs/$SAFE_JOB_NAME/history.log" || true
                 '''
             }
         }
