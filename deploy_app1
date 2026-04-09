@@ -1,0 +1,19 @@
+pipeline {
+    agent { label 'agent-1' }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Deploy App1') {
+            steps {
+                sh '''
+                    docker compose up -d --build app1
+                '''
+            }
+        }
+    }
+}
