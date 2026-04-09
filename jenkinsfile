@@ -1,0 +1,60 @@
+pipeline {
+    agent none
+
+    stages {
+        stage('Run agents in parallel') {
+            parallel {
+                stage('Task on agent-1') {
+                    agent { label 'agent-1' }
+                    steps {
+                        sh '''
+                            mkdir -p reports
+                            echo "[agent-1] bat dau task 1"
+                            sleep 5
+                            echo "[agent-1] da xong nv 1" > reports/agent-1.log
+                        '''
+                        stash name: 'agent1-log', includes: 'reports/agent-1.log'
+                    }
+                }
+
+                stage('Task on agent-2') {
+                    agent { label 'agent-2' }
+                    steps {
+                        sh '''
+                            mkdir -p reports
+                            echo "[agent-2] bat dau task 2"
+                            sleep 7
+                            echo "[agent-2] da xong nv 2" > reports/agent-2.log
+                        '''
+                        stash name: 'agent2-log', includes: 'reports/agent-2.log'
+                    }
+                }
+            }
+        }
+
+        stage('Collect logs on main build node') {
+            agent { label 'built-in' }   // hoặc 'master' tùy node của bạn
+            steps {
+                deleteDir()
+
+                unstash 'agent1-log'
+                unstash 'agent2-log'
+
+                sh '''
+                    mkdir -p final_logs
+                    echo "=== Tong hop ket qua tu cac agent ===" > final_logs/summary.log
+                    cat reports/agent-1.log >> final_logs/summary.log
+                    cat reports/agent-2.log >> final_logs/summary.log
+                '''
+
+                echo '===== NOI DUNG SUMMARY LOG ====='
+                sh 'cat final_logs/summary.log'
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'final_logs/*.log', fingerprint: true
+                }
+            }
+        }
+    }
+}
