@@ -1,0 +1,96 @@
+pipeline {
+    agent { label 'agent-1' }
+
+    stages {
+        stage('Notify Before Build') {
+            steps {
+                emailext(
+                    to: 'tvdtphcm1812@gmail.com',
+                    subject: "[Jenkins] ${env.JOB_NAME} #${env.BUILD_NUMBER} K8S test will start in 10 seconds",
+                    body: """Jenkins is about to run the K8S test job.
+
+Job: ${env.JOB_NAME}
+Build: #${env.BUILD_NUMBER}
+Triggered at: ${new Date()}
+URL: ${env.BUILD_URL}
+"""
+                )
+                sleep time: 10, unit: 'SECONDS'
+            }
+        }
+
+        stage('Checkout Source') {
+            steps {
+                checkout scm
+                sh 'pwd'
+                sh 'ls -la'
+                sh 'ls -la k8s || true'
+            }
+        }
+
+        stage('Check Python Script') {
+            steps {
+                sh 'python3 --version'
+                sh 'ls -la script_now.py || true'
+            }
+        }
+
+        stage('Run Script Now') {
+            steps {
+                sh 'python3 script_now.py'
+            }
+        }
+
+        stage('Check Kubernetes') {
+            steps {
+                sh 'echo $KUBECONFIG'
+                sh 'kubectl config current-context'
+                sh 'kubectl get nodes'
+                sh 'kubectl get ns'
+            }
+        }
+
+        stage('Apply K8s Folder') {
+            steps {
+                sh 'kubectl apply -f k8s/'
+            }
+        }
+
+        stage('Verify K8s Resources') {
+            steps {
+                sh 'kubectl get deploy -A'
+                sh 'kubectl get pods -A'
+                sh 'kubectl get svc -A'
+            }
+        }
+    }
+
+    post {
+        success {
+            emailext(
+                to: 'tvdtphcm1812@gmail.com',
+                subject: "[SUCCESS] ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                body: """K8S test completed successfully.
+
+Job: ${env.JOB_NAME}
+Build: #${env.BUILD_NUMBER}
+Finished at: ${new Date()}
+URL: ${env.BUILD_URL}
+"""
+            )
+        }
+        failure {
+            emailext(
+                to: 'tvdtphcm1812@gmail.com',
+                subject: "[FAILURE] ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                body: """K8S test failed.
+
+Job: ${env.JOB_NAME}
+Build: #${env.BUILD_NUMBER}
+Finished at: ${new Date()}
+URL: ${env.BUILD_URL}
+"""
+            )
+        }
+    }
+}
