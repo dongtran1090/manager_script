@@ -14,8 +14,8 @@ spec:
         app: demo-app
     spec:
       containers:
-        - name: demo-app
-          image: __IMAGE__
-          imagePullPolicy: Always
-          ports:
-            - containerPort: 5000
+      - name: demo-app
+        image: nginx:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 80
