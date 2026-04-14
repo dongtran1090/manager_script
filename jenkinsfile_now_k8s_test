@@ -24,20 +24,12 @@ URL: ${env.BUILD_URL}
                 checkout scm
                 sh 'pwd'
                 sh 'ls -la'
-                sh 'ls -la k8s || true'
-            }
-        }
-
-        stage('Check Python Script') {
-            steps {
-                sh 'python3 --version'
-                sh 'ls -la script_now.py || true'
-            }
-        }
-
-        stage('Run Script Now') {
-            steps {
-                sh 'python3 script_now.py'
+                sh 'ls -la k8s'
+                sh 'cat k8s/namespace.yaml'
+                sh 'echo "---"'
+                sh 'cat k8s/deployment.yaml'
+                sh 'echo "---"'
+                sh 'cat k8s/service.yaml'
             }
         }
 
@@ -50,9 +42,39 @@ URL: ${env.BUILD_URL}
             }
         }
 
-        stage('Apply K8s Folder') {
+        stage('Apply Namespace') {
             steps {
-                sh 'kubectl apply -f k8s/'
+                sh 'kubectl apply -f k8s/namespace.yaml'
+            }
+        }
+
+        stage('Wait Namespace Ready') {
+            steps {
+                sh '''
+                    for i in $(seq 1 30); do
+                      kubectl get ns demo >/dev/null 2>&1 && break
+                      sleep 2
+                    done
+                    kubectl get ns demo
+                '''
+            }
+        }
+
+        stage('Apply Deployment') {
+            steps {
+                sh 'kubectl apply -f k8s/deployment.yaml'
+            }
+        }
+
+        stage('Apply Service') {
+            steps {
+                sh 'kubectl apply -f k8s/service.yaml'
+            }
+        }
+
+        stage('Wait Rollout') {
+            steps {
+                sh 'kubectl rollout status deployment/demo-app -n demo --timeout=120s'
             }
         }
 
