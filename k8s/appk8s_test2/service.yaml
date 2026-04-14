@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: appk8s-test2
+  namespace: demo-test2
+spec:
+  selector:
+    app: appk8s-test2
+  ports:
+    - port: 80
+      targetPort: 80
+  type: ClusterIP
