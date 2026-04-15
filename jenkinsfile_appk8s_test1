@@ -1,79 +1,77 @@
 pipeline {
-    agent { label 'agent-1' }
+  agent {
+    kubernetes {
+      yaml '''
+apiVersion: v1
+kind: Pod
+metadata:
+  namespace: jenkins
+spec:
+  serviceAccountName: jenkins-agent-admin
+  securityContext:
+    runAsUser: 1000
+    fsGroup: 1000
+  containers:
+  - name: kubectl
+    image: bitnami/kubectl:latest
+    command:
+    - /bin/sh
+    - -c
+    args:
+    - sleep 99d
+    tty: true
+    securityContext:
+      runAsUser: 1000
+'''
+    }
+  }
 
-    options {
-        timestamps()
-        disableConcurrentBuilds()
+  environment {
+    APP_NAMESPACE = 'demo-test1'
+    APP_DEPLOYMENT = 'appk8s-test1'
+    K8S_DIR = 'k8s/appk8s_test1'
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
     }
 
-    environment {
-        KUBECONFIG = '/root/.kube/proxy-config'
-        K8S_NAMESPACE = 'demo-test1'
-        DEPLOYMENT_NAME = 'appk8s-test1'
-        SERVICE_NAME = 'appk8s-test1'
-        K8S_DIR = 'k8s/appk8s_test1'
+    stage('Deploy') {
+      steps {
+        container('kubectl') {
+          sh '''
+            APISERVER="https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT_HTTPS}"
+            TOKEN="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)"
+            CACERT="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+            K="kubectl --server=$APISERVER --token=$TOKEN --certificate-authority=$CACERT"
+
+            $K apply -f ${K8S_DIR}/namespace.yaml
+            $K apply -f ${K8S_DIR}/deployment.yaml
+            $K apply -f ${K8S_DIR}/service.yaml
+            $K rollout status deployment/${APP_DEPLOYMENT} -n ${APP_NAMESPACE} --timeout=120s
+          '''
+        }
+      }
     }
 
-    stages {
-        stage('Checkout Source') {
-            steps {
-                checkout scm
-                sh 'pwd'
-                sh 'ls -la'
-                sh 'ls -la ${K8S_DIR}'
-            }
-        }
+    stage('Verify') {
+      steps {
+        container('kubectl') {
+          sh '''
+            APISERVER="https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT_HTTPS}"
+            TOKEN="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)"
+            CACERT="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+            K="kubectl --server=$APISERVER --token=$TOKEN --certificate-authority=$CACERT"
 
-        stage('Check Kubernetes') {
-            steps {
-                sh 'echo $KUBECONFIG'
-                sh 'kubectl config current-context'
-                sh 'kubectl get nodes'
-            }
+            $K get deploy -n ${APP_NAMESPACE}
+            $K get pods -n ${APP_NAMESPACE}
+            $K get svc -n ${APP_NAMESPACE}
+          '''
         }
-
-        stage('Apply Namespace') {
-            steps {
-                sh 'kubectl apply -f ${K8S_DIR}/namespace.yaml'
-            }
-        }
-
-        stage('Wait Namespace Ready') {
-            steps {
-                sh '''
-                    for i in $(seq 1 15); do
-                      kubectl get ns ${K8S_NAMESPACE} >/dev/null 2>&1 && break
-                      sleep 2
-                    done
-                    kubectl get ns ${K8S_NAMESPACE}
-                '''
-            }
-        }
-
-        stage('Apply Deployment') {
-            steps {
-                sh 'kubectl apply -f ${K8S_DIR}/deployment.yaml'
-            }
-        }
-
-        stage('Apply Service') {
-            steps {
-                sh 'kubectl apply -f ${K8S_DIR}/service.yaml'
-            }
-        }
-
-        stage('Wait Rollout') {
-            steps {
-                sh 'kubectl rollout status deployment/${DEPLOYMENT_NAME} -n ${K8S_NAMESPACE} --timeout=120s'
-            }
-        }
-
-        stage('Verify') {
-            steps {
-                sh 'kubectl get deploy -n ${K8S_NAMESPACE}'
-                sh 'kubectl get pods -n ${K8S_NAMESPACE} -o wide'
-                sh 'kubectl get svc -n ${K8S_NAMESPACE}'
-            }
-        }
+      }
     }
+  }
 }
