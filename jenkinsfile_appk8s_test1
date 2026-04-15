@@ -33,11 +33,17 @@ spec:
   }
 
   stages {
+    stage('DEBUG') {
+        steps {
+            echo 'DEBUG_APPK8S_TEST1_0910'
+        }
+    }
     stage('Checkout') {
       steps {
         checkout scm
       }
     }
+
 
     stage('Deploy') {
       steps {
