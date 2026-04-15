@@ -3,6 +3,8 @@ controller:
     username: admin
     password: "dongtran123"
 
+  numExecutors: 0
+
   serviceType: ClusterIP
   servicePort: 8080
   jenkinsUrl: "http://jenkins.jenkins.svc.cluster.local:8080"
@@ -11,11 +13,15 @@ controller:
   installPlugins:
     - kubernetes:4423.vb_59f230b_ce53
     - workflow-aggregator:608.v67378e9d3db_1
+    - workflow-job:1505.vea_4b_20a_4a_495
+    - pipeline-model-api:2.2255.v56a_15e805f12
+    - pipeline-model-extensions:2.2255.v56a_15e805f12
+    - pipeline-model-definition:2.2255.v56a_15e805f12
     - git:5.10.1
     - configuration-as-code:2061.vc08919f7fc37
 
   installLatestPlugins: false
-  initializeOnce: true
+  initializeOnce: false
   overwritePlugins: true
   overwritePluginsFromImage: true
 
