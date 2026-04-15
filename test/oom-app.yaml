@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oom-app
+  namespace: chaos-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oom-app
+  template:
+    metadata:
+      labels:
+        app: oom-app
+    spec:
+      containers:
+      - name: oom-app
+        image: python:3.11-alpine
+        command: ["python", "-c"]
+        args:
+          - |
+            x = []
+            while True:
+                x.append('x' * 1024 * 1024)
+        resources:
+          limits:
+            memory: "64Mi"
