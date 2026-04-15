@@ -5,11 +5,9 @@ controller:
 
   numExecutors: 0
 
-  serviceType: NodePort
-  servicePort: 8080
+  serviceType: LoadBalancer
+  servicePort: 32090
   targetPort: 8080
-  nodePort: 32090
-
   jenkinsUrl: "http://localhost:32090"
   agentListenerServiceType: ClusterIP
 
